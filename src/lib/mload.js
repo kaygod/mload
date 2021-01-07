@@ -53,7 +53,7 @@
         return false;
       }
       m.factory = tmp_data.factory; //工厂函数
-      m.libs = tmp_data.libs; //解析的依赖列表
+      m.libs = childPathHandler(m.id, tmp_data.libs); //解析的依赖列表
       m.cnum = tmp_data.libs.length; //依赖的数量
       if (m.cnum == 0) {
         //加载完毕,没有依赖了
@@ -102,7 +102,7 @@
     var factory = m.factory;
 
     var require = function (path) {
-      path = pathHandler(path); //处理路径格式
+      path = childPathHandler(m.id, path); //规范路径格式
       var seed = getModule(path);
       return seed.exec();
     };
@@ -165,7 +165,7 @@
 
     var obj = {
       factory: factory,
-      libs: pathHandler(libs),
+      libs: libs,
     };
 
     tmp_data = obj;
@@ -184,6 +184,35 @@
       script.remove();
       callback();
     };
+  }
+
+  /**
+   * require函数中的路径处理
+   * @param {*} path
+   */
+  function childPathHandler(parent_path, child_path) {
+    var is_array = true; //默认是数组
+    var result = [];
+    //如果路径以 ./ 开头,就寻找相对路径
+    if (Object.prototype.toString.call(child_path) !== '[object Array]') {
+      child_path = [child_path];
+      is_array = false;
+    }
+    for (var i = 0; i < child_path.length; i++) {
+      if (/^\.\/.+$/.test(child_path[i])) {
+        parent_path = parent_path.slice(0, parent_path.lastIndexOf('/') + 1);
+        var path = child_path[i].slice(2);
+        result.push(parent_path + path);
+      } else {
+        //寻找绝对路径
+        result.push(pathHandler(child_path));
+      }
+    }
+    if (is_array) {
+      return result;
+    } else {
+      return result[0];
+    }
   }
 
   /**
