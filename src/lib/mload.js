@@ -1,6 +1,7 @@
 (function (global) {
   var cache_data = {}; //缓存对象
   var tmp_data; //临时缓存数据
+  var mid = 1;
 
   /**
    * 状态码
@@ -28,13 +29,13 @@
    */
   Mload.prototype.loadModule = function () {
     var m = this;
-    m.status = code.feching;
+    m.status = code.feching; //准备加载依赖
     var libs = m.libs;
     for (var i = 0; i < libs.length; i++) {
       var seed = getModule(libs[i]); //获取子模块
-      if (seed.staus === code.created) {
+      if (seed.status === code.created) {
         //开始加载子模块
-        seed.parent_lib[m.id] = 1;
+        seed.parent_lib[m.id] = 1; //将父模块全部注册进来
         seed.fetchFile();
       }
     }
@@ -48,11 +49,12 @@
 
     var callback = function () {
       if (!tmp_data) {
+        //脚本请求执行完毕后会将结果存储在全局变量tmp_data中
         return false;
       }
-      m.factory = tmp_data.factory;
-      m.libs = tmp_data.libs;
-      m.cnum = tmp_data.libs.length;
+      m.factory = tmp_data.factory; //工厂函数
+      m.libs = tmp_data.libs; //解析的依赖列表
+      m.cnum = tmp_data.libs.length; //依赖的数量
       if (m.cnum == 0) {
         //加载完毕,没有依赖了
         m.loaded();
@@ -71,17 +73,49 @@
     var m = this;
     m.status = code.loaed;
     if (m.callback) {
-      //m.callback();
+      m.callback();
       return false;
     }
     var parent_lib = m.parent_lib;
-    for (var i = 0; i < parent_lib.length; i++) {
-      var parent_module = getModule(parent_lib[i]);
+
+    for (var key in parent_lib) {
+      var parent_module = getModule(key);
       parent_module.cnum--;
       if (parent_module.cnum == 0) {
+        //子依赖全部加载完毕
         parent_module.loaded();
       }
     }
+  };
+
+  /**
+   * 获取模块的导出数据
+   */
+  Mload.prototype.exec = function () {
+    var m = this;
+
+    if (m.exports) {
+      //已经将导出数据缓存了
+      return m.exports;
+    }
+
+    var factory = m.factory;
+
+    var require = function (path) {
+      path = pathHandler(path); //处理路径格式
+      var seed = getModule(path);
+      return seed.exec();
+    };
+
+    var module = {
+      exports: {},
+    };
+
+    factory.apply(null, [require, module.exports, module]);
+
+    m.exports = module.exports;
+
+    return module.exports;
   };
 
   /**
@@ -94,8 +128,16 @@
     var root_id = getPath() + getModuleId();
     libs = pathHandler(libs); //对路径处理
     var m = getModule(root_id);
+    m.callback = function () {
+      var result = [];
+      for (var i = 0; i < libs.length; i++) {
+        var seed = getModule(libs[i]);
+        result.push(seed.exec()); //获取模块的导出数据
+      }
+      callback.apply(null, result);
+    };
     m.libs = libs;
-    m.cnum = libs.length;
+    m.cnum = libs.length; //依赖的数量
     m.loadModule();
   };
 
@@ -148,6 +190,14 @@
    * 路径处理
    */
   function pathHandler(libs) {
+    var is_array = true; //是数组吗
+
+    if (Object.prototype.toString.call(libs) !== '[object Array]') {
+      //不是数组转化成数组
+      libs = [libs];
+      is_array = false;
+    }
+
     for (var i = 0; i < libs.length; i++) {
       libs[i] = resolveHandler(libs[i]);
     }
@@ -168,7 +218,7 @@
       // 1.处理 /./ 和 /b/../
       path = path.replace(/(\/\.\/)|(\/[a-zA-Z\d-]+\/\.\.\/)/gi, '');
       // 2.处理头部的 ./ 和 /
-      path = path.repalce(
+      path = path.replace(
         /^(\.)?\/([a-zA-Z\d-\.\/]+)$/,
         function (match, $1, $2) {
           return $2;
@@ -177,6 +227,12 @@
       path = getPath() + path;
       return path;
     }
+
+    if (is_array) {
+      return libs;
+    } else {
+      return libs[0];
+    }
   }
 
   /**
@@ -184,7 +240,7 @@
    */
   function getPath() {
     var path = document.URL.match(
-      /^(http(s)?:\/\/([a-zA-Z\d-\.]+\/){1,})[^#\?]*[#\?]?.*$/
+      /^(http(s)?:\/\/([a-zA-Z\d-\.:]+\/){1,})[^#\?]*[#\?]?.*$/
     )[1];
     if (path == null) {
       return document.URL + '/';

@@ -6,9 +6,10 @@
     <title>Document</title>
   </head>
   <body></body>
+  <script src="./lib/mload.js"></script>
   <script>
     Mload.use(['./js/a.js', './js/b.js'], function (a_data, b_data) {
-      console.log(123);
+      console.log(a_data, b_data);
     });
   </script>
 </html>

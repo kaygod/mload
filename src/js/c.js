@@ -1,5 +1,5 @@
 define(function (require, exports, module) {
-  exports.b_data = {
-    b: 456,
+  module.exports = {
+    a: 789,
   };
 });
