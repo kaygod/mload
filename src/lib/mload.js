@@ -103,7 +103,7 @@
   Mload.prototype.exec = function () {
     var m = this;
 
-    if (m.exports) {
+    if (JSON.stringify(m.exports)!=="{}") {
       //已经将导出数据缓存了
       return m.exports;
     }
@@ -125,9 +125,11 @@
 
     factory.apply(null, [require, module.exports, module]);
 
-    m.exports = module.exports;
+    for(var key in module.exports){
+      m.exports[key] = module.exports[key];
+    }
 
-    return module.exports;
+    return m.exports;
   };
 
   /**
