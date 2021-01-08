@@ -22,6 +22,7 @@
     this.status = code.created;
     this.cnum = 0; //有几个子级没有加载完
     this.parent_lib = {}; //有哪些父级引用我
+    this.exports = {};
   }
 
   /**
@@ -53,8 +54,16 @@
         return false;
       }
       m.factory = tmp_data.factory; //工厂函数
-      m.libs = childPathHandler(m.id, tmp_data.libs); //解析的依赖列表
-      m.cnum = tmp_data.libs.length; //依赖的数量
+      var result = childPathHandler(m.id, tmp_data.libs); //解析的依赖列表
+      var libs = [];
+      for (var i = 0; i < result.length; i++) {
+        //为了防止a文件引入b,b里面又引入a造成的问题.
+        if (getModule(result[i]).status === code.created) {
+          libs.push(result[i]);
+        }
+      }
+      m.libs = libs;
+      m.cnum = libs.length; //依赖的数量
       if (m.cnum == 0) {
         //加载完毕,没有依赖了
         m.loaded();
@@ -104,6 +113,9 @@
     var require = function (path) {
       path = childPathHandler(m.id, path); //规范路径格式
       var seed = getModule(path);
+      if (seed.libs.indexOf(m.id) !== -1) {
+        return seed.exports;
+      }
       return seed.exec();
     };
 
