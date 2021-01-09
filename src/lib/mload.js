@@ -7,9 +7,11 @@
    * 状态码
    */
   var code = {
-    created: 1, //创建
-    feching: 2, //获取依赖
-    loaed: 3, //加载完毕
+    created: 1, //创建模块
+    load:2, //开始加载依赖
+    feching: 3, //开始加载远程脚本文件
+    feched:4, //脚本文件加载完毕
+    loaed:5, //模块加载完毕
   };
 
   /**
@@ -30,13 +32,13 @@
    */
   Mload.prototype.loadModule = function () {
     var m = this;
-    m.status = code.feching; //准备加载依赖
+    m.status = code.load; //准备加载依赖
     var libs = m.libs;
     for (var i = 0; i < libs.length; i++) {
       var seed = getModule(libs[i]); //获取子模块
-      if (seed.status === code.created) {
+      seed.parent_lib[m.id] = 1; //将父模块全部注册进来
+      if (seed.status < code.feching) {
         //开始加载子模块
-        seed.parent_lib[m.id] = 1; //将父模块全部注册进来
         seed.fetchFile();
       }
     }
@@ -48,6 +50,8 @@
   Mload.prototype.fetchFile = function () {
     var m = this;
 
+    m.status = code.feching; //加载脚本文件
+
     var callback = function () {
       if (!tmp_data) {
         //脚本请求执行完毕后会将结果存储在全局变量tmp_data中
@@ -58,12 +62,13 @@
       var libs = [];
       for (var i = 0; i < result.length; i++) {
         //为了防止a文件引入b,b里面又引入a造成的问题.
-        if (getModule(result[i]).status === code.created) {
+        if (getModule(result[i]).status < code.feched) {
           libs.push(result[i]);
         }
       }
       m.libs = libs;
       m.cnum = libs.length; //依赖的数量
+      m.status = code.feched; // 脚本文件加载完毕
       if (m.cnum == 0) {
         //加载完毕,没有依赖了
         m.loaded();
@@ -80,7 +85,7 @@
    */
   Mload.prototype.loaded = function () {
     var m = this;
-    m.status = code.loaed;
+    m.status = code.loaed; //模块加载完毕
     if (m.callback) {
       m.callback();
       return false;
@@ -219,7 +224,7 @@
         result.push(parent_path + path);
       } else {
         //寻找绝对路径
-        result.push(pathHandler(child_path));
+        result.push(pathHandler(child_path[i]));
       }
     }
     if (is_array) {
@@ -282,9 +287,14 @@
    * 获取项目路径
    */
   function getPath() {
-    var path = document.URL.match(
-      /^(http(s)?:\/\/([a-zA-Z\d-\.:]+\/){1,})[^#\?]*[#\?]?.*$/
-    )[1];
+    var path;
+    try {
+      path = document.URL.match(
+        /^(http(s)?:\/\/([a-zA-Z\d-\.:]+\/){1,})[^#\?]*[#\?]?.*$/
+      )[1];
+    } catch (error) {
+      throw new Error("不要在本地执行脚本文件!"); 
+    }
     if (path == null) {
       return document.URL + '/';
     } else {

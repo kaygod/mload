@@ -1,7 +1,8 @@
 define(function (require, exports, module) {
   var $ = require('/lib/jQuery.js').jQuery;
+  var c = require("./c.js");
   exports.b_data = {
-    b: 456,
     jQuery: $,
+    c:c
   };
 });
